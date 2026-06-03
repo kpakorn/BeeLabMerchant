@@ -1,0 +1,374 @@
+<!doctype html>
+<html lang="th">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Booth Stock Sync</title>
+  <style>
+    :root{
+      --bg:#f6f7f3;--panel:#fff;--ink:#1f2933;--muted:#6b7280;--line:#d9ded2;
+      --accent:#47624f;--accent2:#7e9b83;--warn:#b45309;--bad:#b91c1c;--good:#166534;
+      --shadow:0 10px 28px rgba(31,41,51,.08);--radius:16px;
+    }
+    *{box-sizing:border-box}
+    body{margin:0;font-family:system-ui,-apple-system,BlinkMacSystemFont,"Segoe UI",Tahoma,sans-serif;background:var(--bg);color:var(--ink)}
+    header{position:sticky;top:0;z-index:10;background:rgba(246,247,243,.93);backdrop-filter:blur(10px);border-bottom:1px solid var(--line)}
+    .wrap{max-width:1280px;margin:0 auto;padding:16px 18px}.topbar{display:flex;justify-content:space-between;gap:14px;flex-wrap:wrap;align-items:center}
+    h1{font-size:clamp(22px,3vw,34px);margin:0;color:var(--accent);line-height:1.1}.subtitle{margin:4px 0 0;color:var(--muted);font-size:14px}
+    .actions{display:flex;gap:8px;flex-wrap:wrap;align-items:center}
+    button,.btn{border:0;border-radius:12px;padding:10px 13px;background:var(--accent);color:#fff;font-weight:700;cursor:pointer;font-size:14px}
+    button:hover,.btn:hover{filter:brightness(.95)}button.secondary{background:#e7ebdf;color:var(--ink);border:1px solid var(--line)}button.danger{background:#fee2e2;color:var(--bad);border:1px solid #fecaca}button.ghost{background:transparent;color:var(--accent);border:1px solid var(--line)}
+    input,select,textarea{width:100%;padding:10px 11px;border:1px solid var(--line);border-radius:12px;background:#fff;color:var(--ink);font:inherit;min-height:42px}textarea{resize:vertical;min-height:42px}
+    label{display:block;font-size:13px;color:var(--muted);margin-bottom:6px;font-weight:700}.grid{display:grid;grid-template-columns:repeat(12,1fr);gap:14px}.card{background:var(--panel);border:1px solid var(--line);border-radius:var(--radius);box-shadow:var(--shadow);padding:16px}.card h2{font-size:18px;margin:0 0 12px;color:var(--accent)}.card h3{font-size:15px;margin:0 0 10px;color:var(--ink)}
+    .span-12{grid-column:span 12}.span-8{grid-column:span 8}.span-6{grid-column:span 6}.span-4{grid-column:span 4}.span-3{grid-column:span 3}
+    .summary{display:grid;grid-template-columns:repeat(6,1fr);gap:10px}.metric{background:#f9faf7;border:1px solid var(--line);border-radius:14px;padding:12px;min-height:84px}.metric .label{font-size:12px;color:var(--muted);margin-bottom:6px}.metric .value{font-size:24px;font-weight:850;color:var(--accent);word-break:break-word}.metric .small{font-size:12px;color:var(--muted);margin-top:4px}
+    .form-grid{display:grid;grid-template-columns:repeat(12,1fr);gap:10px;align-items:end}.fg-2{grid-column:span 2}.fg-3{grid-column:span 3}.fg-4{grid-column:span 4}.fg-5{grid-column:span 5}.fg-6{grid-column:span 6}.fg-8{grid-column:span 8}.fg-12{grid-column:span 12}
+    .table-wrap{overflow:auto;border:1px solid var(--line);border-radius:14px;background:#fff;max-height:520px}table{border-collapse:collapse;width:100%;min-width:920px}th,td{padding:10px 11px;border-bottom:1px solid var(--line);text-align:left;font-size:14px;vertical-align:middle}th{position:sticky;top:0;background:#eef3ea;color:#374151;z-index:1;font-size:13px}tr:hover td{background:#fafbf7}.num{text-align:right;font-variant-numeric:tabular-nums}.muted{color:var(--muted)}.right{display:flex;justify-content:flex-end;gap:8px;align-items:center;flex-wrap:wrap}
+    .pill{display:inline-block;border-radius:999px;padding:4px 9px;font-size:12px;font-weight:800;border:1px solid var(--line);white-space:nowrap}.pill.SALE{background:#ecfdf5;color:var(--good);border-color:#bbf7d0}.pill.RESTOCK{background:#eff6ff;color:#1d4ed8;border-color:#bfdbfe}.pill.GIVEAWAY,.pill.DAMAGE,.pill.ADJUST_MINUS{background:#fff7ed;color:var(--warn);border-color:#fed7aa}.pill.RETURN,.pill.ADJUST_PLUS{background:#f5f3ff;color:#6d28d9;border-color:#ddd6fe}
+    .hint{background:#f9faf7;border:1px dashed var(--line);border-radius:12px;padding:10px 12px;color:var(--muted);font-size:13px;line-height:1.45}.status{font-size:13px;margin-top:8px;min-height:20px;color:var(--muted)}.status.good{color:var(--good)}.status.bad{color:var(--bad)}.hide{display:none!important}.kbd{font-family:ui-monospace,SFMono-Regular,Menlo,monospace;background:#eef3ea;padding:2px 5px;border-radius:6px;font-size:12px}
+    @media(max-width:900px){.span-8,.span-6,.span-4,.span-3{grid-column:span 12}.summary{grid-template-columns:repeat(2,1fr)}.fg-2,.fg-3,.fg-4,.fg-5,.fg-6,.fg-8{grid-column:span 12}header{position:relative}.metric .value{font-size:20px}}
+    @media print{header,.no-print,button{display:none!important}.wrap{max-width:100%;padding:0}.card{box-shadow:none;border:1px solid #ddd;break-inside:avoid}.table-wrap{max-height:none;overflow:visible}body{background:#fff}th{position:static}}
+  </style>
+</head>
+<body>
+<header>
+  <div class="wrap topbar">
+    <div>
+      <h1>Booth Stock Sync</h1>
+      <p class="subtitle">จดขาย/เติมของจากหน้าเว็บ แล้วบันทึกเข้า Google Sheets แบบ append transaction</p>
+    </div>
+    <div class="actions no-print">
+      <button class="secondary" id="syncBtn">Sync now</button>
+      <button class="secondary" id="exportBtn">Export CSV</button>
+      <button class="ghost" onclick="window.print()">Print / PDF</button>
+    </div>
+  </div>
+</header>
+
+<main class="wrap">
+  <section class="grid">
+    <div class="span-12 card no-print">
+      <h2>ตั้งค่าการเชื่อมต่อ Google Sheets</h2>
+      <div class="form-grid">
+        <div class="fg-8">
+          <label>Apps Script Web App URL /exec</label>
+          <input id="apiUrl" placeholder="https://script.google.com/macros/s/...../exec" />
+        </div>
+        <div class="fg-3">
+          <label>Passcode คนขาย</label>
+          <input id="passcode" type="password" placeholder="ใส่ค่าเดียวกับ API_SECRET" />
+        </div>
+        <div class="fg-1">
+          <button id="saveSettingsBtn" type="button">Save</button>
+        </div>
+      </div>
+      <div class="status" id="connectionStatus"></div>
+      <div class="hint">ข้อมูลสินค้าและรายการขายจะถูกเก็บใน Google Sheets กลาง ส่วนหน้านี้เก็บแค่ URL/passcode และ cache ล่าสุดใน browser นี้เท่านั้น</div>
+    </div>
+
+    <div class="span-12 card">
+      <div class="summary" id="summaryCards"></div>
+      <div class="status" id="mainStatus"></div>
+    </div>
+
+    <div class="span-8 card no-print">
+      <h2>จดรายการเข้า-ออก / ขาย</h2>
+      <form id="txnForm" class="form-grid">
+        <div class="fg-3">
+          <label>ประเภท</label>
+          <select id="txnType" required>
+            <option value="SALE">ขาย</option>
+            <option value="RESTOCK">เติมของเข้า</option>
+            <option value="GIVEAWAY">แจก/แถม</option>
+            <option value="DAMAGE">เสียหาย/ตัดทิ้ง</option>
+            <option value="RETURN">รับคืนสินค้า/คืนเงิน</option>
+            <option value="ADJUST_PLUS">ปรับเพิ่ม stock</option>
+            <option value="ADJUST_MINUS">ปรับลด stock</option>
+          </select>
+        </div>
+        <div class="fg-3"><label>เลขบิล</label><input id="billNo" placeholder="ปล่อยว่างให้ระบบสร้าง" /></div>
+        <div class="fg-6"><label>สินค้า</label><select id="txnCode" required></select></div>
+        <div class="fg-2"><label>จำนวน</label><input id="qty" type="number" min="0.01" step="0.01" value="1" required /></div>
+        <div class="fg-2"><label>ราคา/หน่วย</label><input id="unitPrice" type="number" min="0" step="0.01" /></div>
+        <div class="fg-3"><label>ช่องทางจ่ายเงิน</label><select id="payment"><option value="QR">QR</option><option value="CASH">เงินสด</option><option value="TRANSFER">โอน</option><option value="CARD">บัตร</option><option value="OTHER">อื่น ๆ</option><option value="NONE">ไม่มีเงินเข้า/ออก</option></select></div>
+        <div class="fg-3"><label>ผู้ขาย</label><input id="seller" placeholder="ชื่อคนขาย" /></div>
+        <div class="fg-2"><button type="submit">บันทึกรายการ</button></div>
+        <div class="fg-12"><label>หมายเหตุ</label><textarea id="note" placeholder="เช่น ลดราคา แจกโปรโมท ของเสียหาย"></textarea></div>
+      </form>
+      <div class="status" id="txnStatus"></div>
+    </div>
+
+    <div class="span-4 card no-print">
+      <h2>เพิ่มสินค้าใหม่</h2>
+      <form id="productForm" class="form-grid">
+        <div class="fg-6"><label>รหัสสินค้า</label><input id="pCode" placeholder="A001" required /></div>
+        <div class="fg-6"><label>หมวดหมู่</label><input id="pCategory" placeholder="shirt / sticker" /></div>
+        <div class="fg-12"><label>ชื่อสินค้า</label><input id="pName" placeholder="ชื่อสินค้า" required /></div>
+        <div class="fg-6"><label>ราคา</label><input id="pPrice" type="number" min="0" step="0.01" value="0" required /></div>
+        <div class="fg-6"><label>จำนวนตั้งต้น</label><input id="pOpening" type="number" min="0" step="0.01" value="0" required /></div>
+        <div class="fg-12"><label>หมายเหตุสินค้า</label><input id="pNote" placeholder="optional" /></div>
+        <div class="fg-12 right"><button type="submit">เพิ่มสินค้าเข้า Google Sheets</button></div>
+      </form>
+      <div class="status" id="productStatus"></div>
+      <div class="hint">ถ้าเพิ่มผิด ให้แก้ไขโดยตรงในชีต Products หรือเพิ่มรหัสใหม่ ระบบ v1 จะไม่ลบ transaction เก่าเพื่อรักษาประวัติ</div>
+    </div>
+
+    <div class="span-12 card">
+      <div class="right no-print" style="margin-bottom:10px">
+        <input id="productSearch" placeholder="ค้นหาสินค้า / code" style="max-width:320px" />
+      </div>
+      <h2>Stock ปัจจุบัน</h2>
+      <div class="table-wrap"><table id="stockTable"></table></div>
+    </div>
+
+    <div class="span-12 card">
+      <div class="right no-print" style="margin-bottom:10px">
+        <input id="txnSearch" placeholder="ค้นหารายการ / bill / seller" style="max-width:320px" />
+      </div>
+      <h2>รายการล่าสุด</h2>
+      <div class="table-wrap"><table id="txnTable"></table></div>
+    </div>
+  </section>
+</main>
+
+<script>
+const CONFIG = {
+  storageKey: 'booth_stock_sync_v1',
+  defaultApiUrl: '',
+  currency: 'THB'
+};
+
+const TYPE_LABEL = {
+  SALE:'ขาย', RESTOCK:'เติมของ', GIVEAWAY:'แจก/แถม', DAMAGE:'เสียหาย', RETURN:'รับคืน', ADJUST_PLUS:'ปรับเพิ่ม', ADJUST_MINUS:'ปรับลด'
+};
+const PAYMENT_LABEL = {CASH:'เงินสด', QR:'QR', TRANSFER:'โอน', CARD:'บัตร', OTHER:'อื่น ๆ', NONE:'-' };
+
+const state = {
+  apiUrl: '', passcode: '', products: [], transactions: [], lastSync: null
+};
+
+const $ = id => document.getElementById(id);
+const fmtMoney = n => new Intl.NumberFormat('th-TH',{style:'currency',currency:CONFIG.currency,maximumFractionDigits:2}).format(Number(n)||0);
+const fmtNum = n => new Intl.NumberFormat('th-TH',{maximumFractionDigits:2}).format(Number(n)||0);
+
+function saveLocal(){
+  localStorage.setItem(CONFIG.storageKey, JSON.stringify({apiUrl:state.apiUrl, passcode:state.passcode, products:state.products, transactions:state.transactions, lastSync:state.lastSync}));
+}
+function loadLocal(){
+  try{
+    const raw = localStorage.getItem(CONFIG.storageKey);
+    if(raw){ Object.assign(state, JSON.parse(raw)); }
+  }catch(e){}
+  $('apiUrl').value = state.apiUrl || CONFIG.defaultApiUrl || '';
+  $('passcode').value = state.passcode || '';
+}
+function setStatus(id, msg, kind=''){
+  const el=$(id); if(!el) return;
+  el.textContent = msg || '';
+  el.className = 'status ' + (kind || '');
+}
+function requireConfig(){
+  state.apiUrl = $('apiUrl').value.trim();
+  state.passcode = $('passcode').value.trim();
+  if(!state.apiUrl) throw new Error('กรุณาใส่ Apps Script Web App URL ก่อน');
+  if(!state.passcode) throw new Error('กรุณาใส่ passcode ก่อน');
+}
+
+function jsonp(params){
+  return new Promise((resolve, reject)=>{
+    const apiUrl = state.apiUrl;
+    const cbName = 'booth_cb_' + Date.now() + '_' + Math.floor(Math.random()*1000000);
+    const url = new URL(apiUrl);
+    Object.entries(params).forEach(([k,v])=>{
+      if(v !== undefined && v !== null) url.searchParams.set(k, String(v));
+    });
+    url.searchParams.set('callback', cbName);
+    url.searchParams.set('_ts', String(Date.now()));
+
+    const script = document.createElement('script');
+    const timer = setTimeout(()=>{
+      cleanup(); reject(new Error('Request timeout'));
+    }, 20000);
+    function cleanup(){
+      clearTimeout(timer); delete window[cbName]; script.remove();
+    }
+    window[cbName] = data => { cleanup(); data && data.ok ? resolve(data) : reject(new Error((data && data.error) || 'Unknown API error')); };
+    script.onerror = () => { cleanup(); reject(new Error('Cannot connect to Apps Script URL')); };
+    script.src = url.toString();
+    document.body.appendChild(script);
+  });
+}
+
+async function api(action, data={}){
+  requireConfig();
+  return jsonp({action, passcode:state.passcode, ...data});
+}
+
+function computeStock(){
+  const map = new Map();
+  state.products.forEach(p=>{
+    const code = String(p.Code||'').toUpperCase();
+    if(!code) return;
+    map.set(code, {
+      code, name:p.ProductName||'', category:p.Category||'', price:Number(p.UnitPrice)||0,
+      opening:Number(p.OpeningStock)||0, movement:0, sold:0, revenue:0, active:String(p.Active||'TRUE'), note:p.Note||''
+    });
+  });
+  state.transactions.forEach(t=>{
+    const code = String(t.Code||'').toUpperCase();
+    const item = map.get(code); if(!item) return;
+    const type = String(t.Type||'').toUpperCase();
+    item.movement += Number(t.QtyChange)||0;
+    if(type === 'SALE') item.sold += Number(t.QtyAbs)||0;
+    item.revenue += Number(t.LineTotal)||0;
+  });
+  return Array.from(map.values()).map(x=>({...x, remaining:x.opening + x.movement}));
+}
+
+function renderSummary(){
+  const stock = computeStock();
+  const totalRevenue = state.transactions.reduce((s,t)=>s+(Number(t.LineTotal)||0),0);
+  const soldQty = state.transactions.filter(t=>String(t.Type).toUpperCase()==='SALE').reduce((s,t)=>s+(Number(t.QtyAbs)||0),0);
+  const totalRemaining = stock.reduce((s,p)=>s+(Number(p.remaining)||0),0);
+  const lowStock = stock.filter(p=>p.remaining <= 3).length;
+  const cash = state.transactions.filter(t=>String(t.Payment).toUpperCase()==='CASH').reduce((s,t)=>s+(Number(t.LineTotal)||0),0);
+  const qr = state.transactions.filter(t=>String(t.Payment).toUpperCase()==='QR').reduce((s,t)=>s+(Number(t.LineTotal)||0),0);
+  const transfer = state.transactions.filter(t=>String(t.Payment).toUpperCase()==='TRANSFER').reduce((s,t)=>s+(Number(t.LineTotal)||0),0);
+  const cards = [
+    ['ยอดขายรวม', fmtMoney(totalRevenue), `${fmtNum(soldQty)} ชิ้นที่ขาย`],
+    ['เงินสด', fmtMoney(cash), 'payment = CASH'],
+    ['QR', fmtMoney(qr), 'payment = QR'],
+    ['โอน', fmtMoney(transfer), 'payment = TRANSFER'],
+    ['ของคงเหลือรวม', fmtNum(totalRemaining), `${stock.length} รายการสินค้า`],
+    ['สินค้าใกล้หมด', fmtNum(lowStock), 'remaining ≤ 3']
+  ];
+  $('summaryCards').innerHTML = cards.map(c=>`<div class="metric"><div class="label">${escapeHtml(c[0])}</div><div class="value">${escapeHtml(c[1])}</div><div class="small">${escapeHtml(c[2])}</div></div>`).join('');
+}
+
+function renderProductSelector(){
+  const stock = computeStock().filter(p=>p.active !== 'FALSE');
+  $('txnCode').innerHTML = '<option value="">-- เลือกสินค้า --</option>' + stock.map(p=>`<option value="${escapeAttr(p.code)}" data-price="${escapeAttr(p.price)}">${escapeHtml(p.code)} — ${escapeHtml(p.name)} | เหลือ ${fmtNum(p.remaining)}</option>`).join('');
+}
+
+function renderStockTable(){
+  const q = $('productSearch').value.trim().toLowerCase();
+  let rows = computeStock();
+  if(q) rows = rows.filter(p => [p.code,p.name,p.category,p.note].join(' ').toLowerCase().includes(q));
+  rows.sort((a,b)=>a.code.localeCompare(b.code));
+  $('stockTable').innerHTML = `
+    <thead><tr><th>Code</th><th>สินค้า</th><th>หมวด</th><th class="num">ราคา</th><th class="num">ตั้งต้น</th><th class="num">ขาย</th><th class="num">Movement</th><th class="num">คงเหลือ</th><th class="num">รายได้</th><th>Note</th></tr></thead>
+    <tbody>${rows.map(p=>`<tr><td><b>${escapeHtml(p.code)}</b></td><td>${escapeHtml(p.name)}</td><td>${escapeHtml(p.category)}</td><td class="num">${fmtMoney(p.price)}</td><td class="num">${fmtNum(p.opening)}</td><td class="num">${fmtNum(p.sold)}</td><td class="num">${fmtNum(p.movement)}</td><td class="num"><b>${fmtNum(p.remaining)}</b></td><td class="num">${fmtMoney(p.revenue)}</td><td class="muted">${escapeHtml(p.note)}</td></tr>`).join('') || '<tr><td colspan="10" class="muted">ยังไม่มีสินค้า</td></tr>'}</tbody>`;
+}
+
+function renderTxnTable(){
+  const q = $('txnSearch').value.trim().toLowerCase();
+  let rows = [...state.transactions];
+  if(q) rows = rows.filter(t => Object.values(t).join(' ').toLowerCase().includes(q));
+  rows = rows.slice(0, 300);
+  $('txnTable').innerHTML = `
+    <thead><tr><th>เวลา</th><th>Type</th><th>Bill</th><th>Code</th><th>สินค้า</th><th class="num">QtyChange</th><th class="num">Qty</th><th class="num">ราคา</th><th class="num">ยอดเงิน</th><th>Payment</th><th>Seller</th><th>Note</th></tr></thead>
+    <tbody>${rows.map(t=>`<tr><td>${escapeHtml(t.Timestamp||'')}</td><td><span class="pill ${escapeAttr(String(t.Type||''))}">${escapeHtml(TYPE_LABEL[t.Type]||t.Type||'')}</span></td><td>${escapeHtml(t.BillNo||'')}</td><td><b>${escapeHtml(t.Code||'')}</b></td><td>${escapeHtml(t.ProductName||'')}</td><td class="num">${fmtNum(t.QtyChange)}</td><td class="num">${fmtNum(t.QtyAbs)}</td><td class="num">${fmtMoney(t.UnitPrice)}</td><td class="num">${fmtMoney(t.LineTotal)}</td><td>${escapeHtml(PAYMENT_LABEL[t.Payment]||t.Payment||'')}</td><td>${escapeHtml(t.Seller||'')}</td><td class="muted">${escapeHtml(t.Note||'')}</td></tr>`).join('') || '<tr><td colspan="12" class="muted">ยังไม่มี transactions</td></tr>'}</tbody>`;
+}
+
+function renderAll(){
+  renderSummary(); renderProductSelector(); renderStockTable(); renderTxnTable();
+  if(state.lastSync) setStatus('mainStatus', `Synced ล่าสุด: ${state.lastSync} | Products: ${state.products.length} | Transactions: ${state.transactions.length}`, 'good');
+}
+
+async function syncData(){
+  try{
+    setStatus('connectionStatus','กำลัง sync ...');
+    const res = await api('getData');
+    state.products = res.products || [];
+    state.transactions = res.transactions || [];
+    state.lastSync = res.serverTime || new Date().toLocaleString('th-TH');
+    saveLocal(); renderAll();
+    setStatus('connectionStatus','เชื่อมต่อ Google Sheets สำเร็จ', 'good');
+  }catch(err){
+    setStatus('connectionStatus', err.message, 'bad');
+    renderAll();
+  }
+}
+
+async function saveTransaction(ev){
+  ev.preventDefault();
+  try{
+    const code = $('txnCode').value;
+    const selected = computeStock().find(p=>p.code===code);
+    if(!selected) throw new Error('กรุณาเลือกสินค้า');
+    setStatus('txnStatus','กำลังบันทึกเข้า Google Sheets ...');
+    const data = {
+      type: $('txnType').value,
+      billNo: $('billNo').value.trim(),
+      code: code,
+      qty: $('qty').value,
+      unitPrice: $('unitPrice').value === '' ? selected.price : $('unitPrice').value,
+      payment: $('payment').value,
+      seller: $('seller').value.trim(),
+      note: $('note').value.trim(),
+      source: 'github-pages-web'
+    };
+    const res = await api('addTransaction', data);
+    setStatus('txnStatus', `บันทึกสำเร็จ: ${res.billNo || ''}`, 'good');
+    $('billNo').value=''; $('qty').value='1'; $('note').value='';
+    await syncData();
+  }catch(err){ setStatus('txnStatus', err.message, 'bad'); }
+}
+
+async function saveProduct(ev){
+  ev.preventDefault();
+  try{
+    setStatus('productStatus','กำลังเพิ่มสินค้า ...');
+    const data = {
+      code: $('pCode').value.trim(), productName: $('pName').value.trim(), category: $('pCategory').value.trim(),
+      unitPrice: $('pPrice').value, openingStock: $('pOpening').value, note: $('pNote').value.trim()
+    };
+    const res = await api('addProduct', data);
+    setStatus('productStatus', `เพิ่มสินค้าแล้ว: ${res.code}`, 'good');
+    $('productForm').reset(); $('pPrice').value='0'; $('pOpening').value='0';
+    await syncData();
+  }catch(err){ setStatus('productStatus', err.message, 'bad'); }
+}
+
+function exportCsv(){
+  const rows = state.transactions;
+  const headers = ['Timestamp','TransactionID','BillNo','Type','Code','ProductName','QtyChange','QtyAbs','UnitPrice','LineTotal','Payment','Seller','Note','Source'];
+  const csv = [headers.join(',')].concat(rows.map(r => headers.map(h => csvCell(r[h])).join(','))).join('\n');
+  downloadText(csv, `booth_transactions_${new Date().toISOString().slice(0,10)}.csv`, 'text/csv;charset=utf-8');
+}
+function csvCell(v){
+  const s = String(v ?? '');
+  return /[",\n]/.test(s) ? '"' + s.replace(/"/g,'""') + '"' : s;
+}
+function downloadText(text, filename, type){
+  const blob = new Blob(['\ufeff'+text], {type});
+  const a = document.createElement('a'); a.href = URL.createObjectURL(blob); a.download = filename; a.click(); URL.revokeObjectURL(a.href);
+}
+function escapeHtml(s){return String(s??'').replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));}
+function escapeAttr(s){return escapeHtml(s).replace(/'/g,'&#039;');}
+
+$('saveSettingsBtn').addEventListener('click', async()=>{
+  try{ requireConfig(); saveLocal(); setStatus('connectionStatus','บันทึก settings แล้ว กำลังทดสอบ sync ...'); await syncData(); }
+  catch(err){ setStatus('connectionStatus', err.message, 'bad'); }
+});
+$('syncBtn').addEventListener('click', syncData);
+$('exportBtn').addEventListener('click', exportCsv);
+$('txnForm').addEventListener('submit', saveTransaction);
+$('productForm').addEventListener('submit', saveProduct);
+$('txnCode').addEventListener('change', ()=>{
+  const opt = $('txnCode').selectedOptions[0];
+  if(opt && opt.dataset.price !== undefined) $('unitPrice').value = opt.dataset.price;
+});
+$('txnType').addEventListener('change', ()=>{
+  const type = $('txnType').value;
+  if(['RESTOCK','GIVEAWAY','DAMAGE','ADJUST_PLUS','ADJUST_MINUS'].includes(type)) $('payment').value = 'NONE';
+  if(type==='SALE') $('payment').value = 'QR';
+});
+$('productSearch').addEventListener('input', renderStockTable);
+$('txnSearch').addEventListener('input', renderTxnTable);
+
+loadLocal(); renderAll();
+if(state.apiUrl && state.passcode) syncData();
+</script>
+</body>
+</html>
